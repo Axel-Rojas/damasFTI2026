@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Damas</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <script defer src="{{ url_for('static', filename='lib/viz-global.js') }}"></script>
+  <script defer src="{{ url_for('static', filename='automata.js') }}"></script>
+  <script defer src="{{ url_for('static', filename='app.js') }}"></script>
+</head>
+<body>
+  <header class="encabezado-partida">
+    <p id="estado" role="status" aria-live="polite"></p>
+  </header>
+  <main>
+    <section class="seccion-tablero" aria-label="Tablero de damas">
+      <div class="marco-tablero">
+        <div id="tablero" class="tablero" aria-label="Tablero de damas de ocho por ocho"></div>
+        <div class="columnas" aria-hidden="true"><span>A</span><span>B</span><span>C</span><span>D</span><span>E</span><span>F</span><span>G</span><span>H</span></div>
+      </div>
+    </section>
+    <section class="automata" aria-label="Autómatas">
+      <div class="pestanas-automata" role="tablist" aria-label="Control de recorrido">
+        <button id="tab-ficha" role="tab" aria-selected="true" aria-controls="diagramas-automata" data-tipo="ficha">Ficha normal</button>
+        <button id="tab-dama" role="tab" aria-selected="false" aria-controls="diagramas-automata" tabindex="-1" data-tipo="dama">Dama</button>
+      </div>
+      <div id="diagramas-automata" role="tabpanel" aria-labelledby="tab-ficha"></div>
+    </section>
+    <section class="jugadas" aria-label="Revisión de jugadas">
+      <div class="controles-reproduccion">
+        <button id="jugada-anterior" disabled aria-label="Jugada anterior">← Anterior</button>
+        <p id="posicion-reproduccion" role="status">Posición inicial</p>
+        <button id="jugada-siguiente" disabled aria-label="Jugada siguiente">Siguiente →</button>
+        <button id="nueva-partida" disabled>Nueva partida</button>
+      </div>
+    </section>
+  </main>
+  <dialog id="dialogo-reinicio">
+    <h2>¿Nueva partida?</h2>
+    <p>Se borrarán los movimientos actuales.</p>
+    <div class="acciones-dialogo"><button id="cancelar-reinicio">Cancelar</button><button id="confirmar-reinicio">Reiniciar</button></div>
+  </dialog>
+</body>
+</html>
