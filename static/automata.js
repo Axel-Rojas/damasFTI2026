@@ -13,8 +13,7 @@ const inspector = (() => {
   function diagrama(titulo, biblioteca) {
     const seccion = document.createElement('section'); seccion.className = 'diagrama-automata';
     const encabezado = document.createElement('h3'); encabezado.textContent = titulo;
-    const resultado = document.createElement('span'); resultado.className = 'resultado-automata';
-    encabezado.append(resultado); seccion.append(encabezado);
+    seccion.append(encabezado);
     const grupos = {};
     for (const [origen, transiciones] of Object.entries(definicion.transiciones)) {
       for (const [simbolo, destino] of Object.entries(transiciones)) {
@@ -62,6 +61,9 @@ const inspector = (() => {
       nodo.dataset.estado = estado;
     }
     seccion.append(svg);
+    const aclaracion = document.createElement('p');
+    aclaracion.textContent = 'Solo se evalúan recorridos en diagonal.';
+    seccion.append(aclaracion);
     const traza = document.createElement('p'); traza.className = 'traza-automata'; seccion.append(traza);
     const simbolos = document.createElement('ul'); simbolos.className = 'simbolos-diagrama';
     for (const [simbolo, significado] of [['P', 'Origen con ficha propia'], ['E', 'Ficha enemiga'], ['V', 'Casilla vacía'], ['O', 'Ficha propia que bloquea el recorrido']]) {
@@ -107,11 +109,6 @@ const inspector = (() => {
         arco.classList.toggle('activo', activo);
       });
       panel.querySelector('.traza-automata').textContent = traza.map(estado => etiquetas[estado]).join(' → ');
-      const resultado = panel.querySelector('.resultado-automata');
-      const completa = validacion && paso === validacion.cadena.length;
-      const aceptada = validacion?.aceptada;
-      resultado.textContent = !validacion ? 'En espera' : !completa ? `Leyendo ${paso}/${validacion.cadena.length}` : inspeccion.parcial ? 'Cadena incompleta' : aceptada ? 'Acepta' : 'Rechaza';
-      resultado.classList.toggle('rechazada', Boolean(completa && !aceptada && !inspeccion.parcial));
     }
     document.querySelectorAll('.casilla.leyendo').forEach(elemento => elemento.classList.remove('leyendo'));
     const casilla = inspeccion?.recorrido[paso - 1]?.casilla;
