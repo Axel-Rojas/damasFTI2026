@@ -1,6 +1,9 @@
 # Damas
 
-Requiere Python 3.10 o superior.
+Requiere
+
+- Flask==3.1.3
+- automata-lib==9.2.0
 
 Desde la carpeta del proyecto, ejecutá en PowerShell:
 

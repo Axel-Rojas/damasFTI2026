@@ -1,16 +1,16 @@
 //Lógica de presentación del autómata
 const inspector = (() => {
   const etiquetas = { inicio: 'Inicio', propia: 'Propia', movimiento: 'Movimiento', enemiga: 'Enemiga', captura: 'Captura', invalido: 'Inválido' };
-  let temporizadores = [];
+  let timers = [];
   let definicion = null;
   let definiciones = null;
-  let biblioteca = null;
+  let viz = null;
   let claveActual = null;
   let ultimaInspeccion = null;
   let tipoSeleccionado = 'ficha';
   const pestanas = [...document.querySelectorAll('.pestanas-automata [role="tab"]')];
 
-  function diagrama(titulo, biblioteca) {
+  function diagram(titulo, viz) {
     const seccion = document.createElement('section'); seccion.className = 'diagrama-automata';
     const encabezado = document.createElement('h3'); encabezado.textContent = titulo;
     seccion.append(encabezado);
@@ -24,7 +24,7 @@ const inspector = (() => {
     }
     const transiciones = Object.values(grupos);
     // Viz.js calcula las posiciones, curvas y flechas a partir del AFD del servidor.
-    const svg = biblioteca.renderSVGElement({
+    const svg = viz.renderSVGElement({
       directed: true,
       graphAttributes: { rankdir: 'LR', bgcolor: 'transparent', pad: 0.15, nodesep: 0.5, ranksep: 0.5 },
       nodeAttributes: { shape: 'circle', style: 'filled', fillcolor: '#1c293a', color: '#8293a8', fontcolor: '#e6edf5', fontname: 'Arial', fontsize: 12 },
@@ -75,29 +75,29 @@ const inspector = (() => {
     return seccion;
   }
 
-  async function configurar(datos, datosDama) {
+  async function setup(datos, datosDama) {
     if (definiciones) return;
     definiciones = { ficha: datos, dama: datosDama };
     const contenedor = document.getElementById('diagramas-automata');
     contenedor.textContent = 'Cargando diagrama…';
     try {
-      biblioteca = await Viz.instance();
-      mostrar(ultimaInspeccion, true, false);
+      viz = await Viz.instance();
+      show(ultimaInspeccion, true, false);
     } catch (excepcion) {
       definiciones = null;
       definicion = null;
-      biblioteca = null;
+      viz = null;
       contenedor.textContent = 'No se pudo generar el diagrama del autómata.';
       console.error('Error al generar el diagrama:', excepcion);
     }
   }
 
-  function limpiar() {
-    temporizadores.forEach(clearTimeout); temporizadores = [];
+  function clear() {
+    timers.forEach(clearTimeout); timers = [];
     document.querySelectorAll('.casilla.inspeccionada, .casilla.leyendo').forEach(elemento => elemento.classList.remove('inspeccionada', 'leyendo'));
   }
 
-  function fotograma(inspeccion, paso) {
+  function frame(inspeccion, paso) {
     const validacion = inspeccion?.validacion;
     const traza = validacion ? validacion.traza.slice(0, paso + 1) : ['inicio'];
     const estadosVisitados = new Set(traza);
@@ -115,7 +115,7 @@ const inspector = (() => {
     if (casilla) document.querySelector(`[data-casilla="${casilla}"]`)?.classList.add('leyendo');
   }
 
-  function mostrar(inspeccion, forzar = false, actualizarTipo = true) {
+  function show(inspeccion, force = false, actualizarTipo = true) {
     ultimaInspeccion = inspeccion;
     if (actualizarTipo && inspeccion) tipoSeleccionado = inspeccion.es_dama ? 'dama' : 'ficha';
     for (const pestana of pestanas) {
@@ -124,45 +124,45 @@ const inspector = (() => {
       pestana.tabIndex = seleccionada ? 0 : -1;
     }
     document.getElementById('diagramas-automata').setAttribute('aria-labelledby', `tab-${tipoSeleccionado}`);
-    if (!biblioteca) return;
+    if (!viz) return;
     const datos = definiciones[tipoSeleccionado];
     if (definicion !== datos) {
-      limpiar();
+      clear();
       definicion = datos;
       claveActual = null;
-      document.getElementById('diagramas-automata').replaceChildren(diagrama('Control de recorrido', biblioteca));
+      document.getElementById('diagramas-automata').replaceChildren(diagram('Control de recorrido', viz));
     }
     // Solo animamos la evaluación si pertenece al tipo de pieza mostrado.
     if (inspeccion && inspeccion.es_dama !== (tipoSeleccionado === 'dama')) inspeccion = null;
     const clave = JSON.stringify(inspeccion);
-    if (clave === claveActual && !forzar) return;
-    claveActual = clave; limpiar();
+    if (clave === claveActual && !force) return;
+    claveActual = clave; clear();
     for (const paso of inspeccion?.recorrido || []) {
       document.querySelector(`[data-casilla="${paso.casilla}"]`)?.classList.add('inspeccionada');
     }
-    fotograma(inspeccion, 0);
+    frame(inspeccion, 0);
     if (!inspeccion?.validacion) return;
     const longitud = inspeccion.validacion.cadena.length;
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches) { fotograma(inspeccion, longitud); return; }
-    for (let paso = 1; paso <= longitud; paso++) temporizadores.push(setTimeout(() => fotograma(inspeccion, paso), paso * 260));
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) { frame(inspeccion, longitud); return; }
+    for (let paso = 1; paso <= longitud; paso++) timers.push(setTimeout(() => frame(inspeccion, paso), paso * 260));
   }
 
-  function seleccionarPestana(pestana) {
+  function selectTab(pestana) {
     tipoSeleccionado = pestana.dataset.tipo;
-    mostrar(ultimaInspeccion, true, false);
+    show(ultimaInspeccion, true, false);
   }
 
   pestanas.forEach((pestana, indice) => {
-    pestana.addEventListener('click', () => seleccionarPestana(pestana));
-    pestana.addEventListener('keydown', evento => {
+    pestana.addEventListener('click', () => selectTab(pestana));
+    pestana.addEventListener('keydown', event => {
       const desplazamientos = { ArrowLeft: -1, ArrowRight: 1, Home: -indice, End: pestanas.length - 1 - indice };
-      if (!(evento.key in desplazamientos)) return;
-      evento.preventDefault();
-      const siguiente = pestanas[(indice + desplazamientos[evento.key] + pestanas.length) % pestanas.length];
-      seleccionarPestana(siguiente);
+      if (!(event.key in desplazamientos)) return;
+      event.preventDefault();
+      const siguiente = pestanas[(indice + desplazamientos[event.key] + pestanas.length) % pestanas.length];
+      selectTab(siguiente);
       siguiente.focus();
     });
   });
 
-  return { configurar, mostrar };
+  return { setup, show };
 })();

@@ -6,25 +6,25 @@ let seleccionada = null;
 let ocupado = false;
 let destinoPrevio = null;
 const nombres = { b: 'Blancas', n: 'Negras' };
-const revisando = () => partida && partidaActual && partida.historial.length < partidaActual.historial.length;
+const isReviewing = () => partida && partidaActual && partida.historial.length < partidaActual.historial.length;
 
 function aceptarPartidaActual(datos) {
   partida = partidaActual = datos;
   cacheReproduccion.clear();
 }
 
-async function revisar(paso) {
+async function review(paso) {
   if (ocupado || !partidaActual || paso < 0 || paso > partidaActual.historial.length) return;
-  ocupado = true; dibujar();
+  ocupado = true; render();
   try {
     const vista = paso === partidaActual.historial.length ? partidaActual
-      : cacheReproduccion.get(paso) || await solicitar(`/api/partida/reproducir/${paso}`);
+      : cacheReproduccion.get(paso) || await request(`/api/partida/reproducir/${paso}`);
     cacheReproduccion.set(paso, vista);
     partida = vista; seleccionada = null; destinoPrevio = null;
-  } finally { ocupado = false; dibujar(); }
+  } finally { ocupado = false; render(); }
 }
 
-async function solicitar(recorrido, datos) {
+async function request(recorrido, datos) {
   const respuesta = await fetch(recorrido, datos === undefined ? {} : {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos),
   });
@@ -33,7 +33,7 @@ async function solicitar(recorrido, datos) {
   return contenido;
 }
 
-function dibujarTablero() {
+function renderBoard() {
   if (!partida) return;
   const tablero = $('tablero');
   if (!tablero.children.length) {
@@ -89,59 +89,59 @@ function dibujarTablero() {
   }));
 }
 
-function dibujar() {
-  dibujarTablero();
+function render() {
+  renderBoard();
   $('nueva-partida').disabled = ocupado || !partida;
   if (!partida) return;
-  inspector.configurar(partida.automata, partida.automata_dama);
-  inspector.mostrar(seleccionada ? partida.inspecciones[seleccionada]?.[destinoPrevio || seleccionada] : partida.ultima_inspeccion, true);
+  inspector.setup(partida.automata, partida.automata_dama);
+  inspector.show(seleccionada ? partida.inspecciones[seleccionada]?.[destinoPrevio || seleccionada] : partida.ultima_inspeccion, true);
   const estado = partida.ganador ? `Ganan las ${nombres[partida.ganador].toLowerCase()}.`
     : partida.captura_obligatoria ? `Turno: ${nombres[partida.turno]}. Continuá capturando con ${partida.captura_obligatoria}.`
     : `Turno: ${nombres[partida.turno]}.`;
-  $('estado').textContent = `${revisando() ? 'Revisión · ' : ''}${estado}`;
+  $('estado').textContent = `${isReviewing() ? 'Revisión · ' : ''}${estado}`;
   const paso = partida.historial.length, total = partidaActual.historial.length;
   const ultima = partida.historial.at(-1);
-  $('posicion-reproduccion').textContent = `${paso ? `Jugada ${paso} de ${total} · ${ultima.origen} → ${ultima.destino}${ultima.capturadas.length ? ` × ${ultima.capturadas.join(', ')}` : ''}` : `Posición inicial · 0 de ${total}`}${revisando() ? '' : ' · Actual'}`;
+  $('posicion-reproduccion').textContent = `${paso ? `Jugada ${paso} de ${total} · ${ultima.origen} → ${ultima.destino}${ultima.capturadas.length ? ` × ${ultima.capturadas.join(', ')}` : ''}` : `Posición inicial · 0 de ${total}`}${isReviewing() ? '' : ' · Actual'}`;
   $('jugada-anterior').disabled = ocupado || paso === 0;
   $('jugada-siguiente').disabled = ocupado || paso === total;
 }
 
 async function seleccionar(casilla) {
   if (ocupado || !partida) return;
-  if (!revisando() && seleccionada && partida.jugadas_permitidas.some((jugada) => jugada.origen === seleccionada && jugada.destino === casilla)) {
-    ocupado = true; dibujar();
+  if (!isReviewing() && seleccionada && partida.jugadas_permitidas.some((jugada) => jugada.origen === seleccionada && jugada.destino === casilla)) {
+    ocupado = true; render();
     try {
-      aceptarPartidaActual(await solicitar('/api/partida/mover', { origen: seleccionada, destino: casilla }));
+      aceptarPartidaActual(await request('/api/partida/mover', { origen: seleccionada, destino: casilla }));
       seleccionada = partida.captura_obligatoria;
       destinoPrevio = null;
-    } finally { ocupado = false; dibujar(); }
+    } finally { ocupado = false; render(); }
   } else if (partida.inspecciones[casilla]) {
     seleccionada = seleccionada === casilla ? null : casilla;
     destinoPrevio = null;
-    dibujar();
+    render();
   } else previsualizar(casilla);
 }
 
 function previsualizar(casilla) {
   if (!seleccionada || ocupado || !partida || destinoPrevio === casilla) return;
   destinoPrevio = casilla;
-  inspector.mostrar(partida.inspecciones[seleccionada]?.[casilla]);
+  inspector.show(partida.inspecciones[seleccionada]?.[casilla]);
 }
 
-async function cargar() {
-  aceptarPartidaActual(await solicitar('/api/partida'));
+async function load() {
+  aceptarPartidaActual(await request('/api/partida'));
   seleccionada = partida.captura_obligatoria;
-  dibujar();
+  render();
 }
 
-$('jugada-anterior').addEventListener('click', () => revisar(partida.historial.length - 1));
-$('jugada-siguiente').addEventListener('click', () => revisar(partida.historial.length + 1));
+$('jugada-anterior').addEventListener('click', () => review(partida.historial.length - 1));
+$('jugada-siguiente').addEventListener('click', () => review(partida.historial.length + 1));
 $('nueva-partida').addEventListener('click', () => $('dialogo-reinicio').showModal());
 $('cancelar-reinicio').addEventListener('click', () => $('dialogo-reinicio').close());
 $('confirmar-reinicio').addEventListener('click', async () => {
   if (ocupado) return;
-  $('dialogo-reinicio').close(); ocupado = true; dibujar();
-  try { aceptarPartidaActual(await solicitar('/api/partida/reiniciar', {})); seleccionada = null; destinoPrevio = null; }
-  finally { ocupado = false; dibujar(); }
+  $('dialogo-reinicio').close(); ocupado = true; render();
+  try { aceptarPartidaActual(await request('/api/partida/reiniciar', {})); seleccionada = null; destinoPrevio = null; }
+  finally { ocupado = false; render(); }
 });
-cargar();
+load();

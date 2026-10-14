@@ -8,7 +8,7 @@ from flask import Flask, jsonify, render_template, request, session
 from juego.motor import Partida
 
 
-def crear_aplicacion() -> Flask:
+def create_app() -> Flask:
     aplicacion = Flask(__name__, template_folder=".")
     aplicacion.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
     aplicacion.config.update(MAX_CONTENT_LENGTH=4096, SESSION_COOKIE_SAMESITE="Strict")
@@ -82,9 +82,9 @@ def crear_aplicacion() -> Flask:
     return aplicacion
 
 
-def principal():
-    crear_aplicacion().run(host="127.0.0.1", port=int(os.environ.get("PORT", "5000")), debug=False)
+def main():
+    create_app().run(host="127.0.0.1", port=int(os.environ.get("PORT", "5000")), debug=False)
 
 
 if __name__ == "__main__":
-    principal()
+    main()
