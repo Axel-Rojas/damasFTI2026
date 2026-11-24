@@ -64,7 +64,22 @@ const inspector = (() => {
     const aclaracion = document.createElement('p');
     aclaracion.textContent = 'Solo se evalúan recorridos en diagonal.';
     seccion.append(aclaracion);
-    const traza = document.createElement('p'); traza.className = 'traza-automata'; seccion.append(traza);
+    const cadena = document.createElement('p'); cadena.className = 'cadena-automata';
+    const caracteres = document.createElement('code');
+    cadena.append('Cadena construida: ', caracteres);
+    seccion.append(cadena);
+    const ejemplos = document.createElement('p'); ejemplos.className = 'ejemplos-cadenas';
+    const cadenas = tipoSeleccionado === 'dama'
+      ? [['PVVV', 'movimiento con dama'], ['PVEVVEVV', 'captura múltiple con dama']]
+      : [['PV', 'movimiento normal'], ['PEV', 'captura normal']];
+    ejemplos.append('Ejemplos de cadenas aceptadas:');
+    for (const [valor, significado] of cadenas) {
+      const ejemplo = document.createElement('span');
+      const codigo = document.createElement('code'); codigo.textContent = valor;
+      ejemplo.append(codigo, ` · ${significado}`);
+      ejemplos.append(ejemplo);
+    }
+    seccion.append(ejemplos);
     const simbolos = document.createElement('ul'); simbolos.className = 'simbolos-diagrama';
     for (const [simbolo, significado] of [['P', 'Origen con ficha propia'], ['E', 'Ficha enemiga'], ['V', 'Casilla vacía'], ['O', 'Ficha propia que bloquea el recorrido']]) {
       const elementoLista = document.createElement('li');
@@ -108,7 +123,9 @@ const inspector = (() => {
         const activo = transicionesVisitadas.has(`${arco.dataset.origen}:${arco.dataset.destino}`);
         arco.classList.toggle('activo', activo);
       });
-      panel.querySelector('.traza-automata').textContent = traza.map(estado => etiquetas[estado]).join(' → ');
+      panel.querySelector('.cadena-automata code').textContent = validacion
+        ? validacion.cadena.slice(0, paso) || 'ε'
+        : '—';
     }
     document.querySelectorAll('.casilla.leyendo').forEach(elemento => elemento.classList.remove('leyendo'));
     const casilla = inspeccion?.recorrido[paso - 1]?.casilla;

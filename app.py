@@ -6,6 +6,7 @@ from time import monotonic
 from flask import Flask, jsonify, render_template, request, session
 
 from juego.motor import Partida
+from juego.ejemplos import EJEMPLOS, ejemplo, listado, partida_ejemplo
 
 
 def create_app() -> Flask:
@@ -37,6 +38,35 @@ def create_app() -> Flask:
     def estado():
         with bloqueo:
             return jsonify(partida_actual().estado())
+
+    @aplicacion.get("/api/ejemplos")
+    def ejemplos():
+        return jsonify(listado())
+
+    @aplicacion.get("/api/ejemplos/<int:indice>")
+    def posicion_ejemplo(indice):
+        if not 1 <= indice <= len(EJEMPLOS):
+            return jsonify(error="Ese ejemplo no existe."), 404
+        return jsonify(ejemplo(indice))
+
+    @aplicacion.post("/api/ejemplos/<int:indice>/mover")
+    def mover_ejemplo(indice):
+        if not 1 <= indice <= len(EJEMPLOS):
+            return jsonify(error="Ese ejemplo no existe."), 404
+        datos = request.get_json(silent=True)
+        if not isinstance(datos, dict):
+            return jsonify(error="La jugada debe enviarse como JSON."), 400
+        historial = datos.get("historial", [])
+        if not isinstance(historial, list) or len(historial) > 100 or any(not isinstance(jugada, dict) for jugada in historial):
+            return jsonify(error="El historial del ejemplo no es válido."), 400
+        partida = partida_ejemplo(indice)
+        try:
+            for jugada in historial:
+                partida.mover(jugada.get("origen"), jugada.get("destino"))
+            partida.mover(datos.get("origen"), datos.get("destino"))
+        except ValueError as error:
+            return jsonify(error=str(error)), 400
+        return jsonify(partida.estado())
 
     @aplicacion.post("/api/partida/reiniciar")
     def reiniciar():

@@ -1,19 +1,23 @@
 from automata.fa.dfa import DFA as AutomataAFD
 
 # Cada estado representa el avance de la lectura del recorrido diagonal.
-# P: ficha propia de origen; E: enemiga; V: casilla vacía; O: otra ficha propia.
+# P: ficha propia de origen; E: enemiga; V: casilla vacía; O: otra ficha propia
 ESTADOS = {"inicio", "propia", "enemiga", "movimiento", "captura", "invalido"}
 SIMBOLOS = {"P", "E", "V", "O"}
-# Toda transición no permitida conduce al estado trampa, que no tiene salida.
+
+# Toda transición no permitida conduce al estado sumidero
 TRANSICIONES = {estado: {simbolo: "invalido" for simbolo in SIMBOLOS} for estado in ESTADOS}
+
 # El recorrido debe comenzar en la ficha propia que se quiere mover.
 TRANSICIONES["inicio"]["P"] = "propia"
-# Leer una casilla vacía permite avanzar; encontrar una enemiga exige saltarla.
+
+# Leer una casilla vacía permite avanzar, encontrar una enemiga exige saltarla.
 TRANSICIONES["propia"].update(V="movimiento", E="enemiga")
+
 # Después de una enemiga debe existir una casilla vacía donde aterrizar.
 TRANSICIONES["enemiga"]["V"] = "captura"
-# Una ficha normal solo avanza una casilla: después de PV no puede seguir.
-# Después de una captura puede encadenar otro salto, pero no avanzar en vacío.
+
+# Una ficha normal solo avanza una casilla
 TRANSICIONES["captura"]["E"] = "enemiga"
 FINALES = {"movimiento", "captura"}
 
@@ -22,7 +26,6 @@ TRANSICIONES_DAMA = {estado: destinos.copy() for estado, destinos in TRANSICIONE
 TRANSICIONES_DAMA["movimiento"].update(V="movimiento", E="enemiga")
 TRANSICIONES_DAMA["captura"]["V"] = "captura"
 
-# La biblioteca construye el AFD con sus estados, alfabeto y transiciones.
 AUTOMATA = AutomataAFD(
     states=ESTADOS, input_symbols=SIMBOLOS, transitions=TRANSICIONES,
     initial_state="inicio", final_states=FINALES,

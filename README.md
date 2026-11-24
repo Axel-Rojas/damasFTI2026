@@ -12,4 +12,4 @@ python -m pip install -r req.txt
 python app.py
 ```
 
-Abrí [http://127.0.0.1:5000](http://127.0.0.1:5000) en el navegador.
+Abrir [http://127.0.0.1:5000](http://127.0.0.1:5000) en el navegador.

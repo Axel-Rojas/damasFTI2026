@@ -5,16 +5,18 @@ const cacheReproduccion = new Map();
 let seleccionada = null;
 let ocupado = false;
 let destinoPrevio = null;
+let ejemploActivo = null;
+let vistaGuardada = null;
 const nombres = { b: 'Blancas', n: 'Negras' };
-const isReviewing = () => partida && partidaActual && partida.historial.length < partidaActual.historial.length;
+const isReviewing = () => !ejemploActivo && partida && partidaActual && partida.historial.length < partidaActual.historial.length;
 
-function aceptarPartidaActual(datos) {
+function actualizarEstadoDePartida(datos) {
   partida = partidaActual = datos;
   cacheReproduccion.clear();
 }
 
 async function review(paso) {
-  if (ocupado || !partidaActual || paso < 0 || paso > partidaActual.historial.length) return;
+  if (ocupado || ejemploActivo || !partidaActual || paso < 0 || paso > partidaActual.historial.length) return;
   ocupado = true; render();
   try {
     const vista = paso === partidaActual.historial.length ? partidaActual
@@ -91,19 +93,26 @@ function renderBoard() {
 
 function render() {
   renderBoard();
-  $('nueva-partida').disabled = ocupado || !partida;
+  $('nueva-partida').disabled = ocupado || !partida || !!ejemploActivo;
+  document.querySelectorAll('.boton-ejemplo').forEach(boton => {
+    boton.disabled = ocupado || !partida;
+    boton.setAttribute('aria-pressed', String(Number(boton.dataset.ejemplo) === ejemploActivo?.id));
+  });
   if (!partida) return;
   inspector.setup(partida.automata, partida.automata_dama);
   inspector.show(seleccionada ? partida.inspecciones[seleccionada]?.[destinoPrevio || seleccionada] : partida.ultima_inspeccion, true);
   const estado = partida.ganador ? `Ganan las ${nombres[partida.ganador].toLowerCase()}.`
     : partida.captura_obligatoria ? `Turno: ${nombres[partida.turno]}. Continuá capturando con ${partida.captura_obligatoria}.`
     : `Turno: ${nombres[partida.turno]}.`;
-  $('estado').textContent = `${isReviewing() ? 'Revisión · ' : ''}${estado}`;
+  $('estado').textContent = ejemploActivo ? `Ejemplo ${ejemploActivo.id} · ${ejemploActivo.titulo} · ${estado}` : `${isReviewing() ? 'Revisión · ' : ''}${estado}`;
   const paso = partida.historial.length, total = partidaActual.historial.length;
   const ultima = partida.historial.at(-1);
   $('posicion-reproduccion').textContent = `${paso ? `Jugada ${paso} de ${total} · ${ultima.origen} → ${ultima.destino}${ultima.capturadas.length ? ` × ${ultima.capturadas.join(', ')}` : ''}` : `Posición inicial · 0 de ${total}`}${isReviewing() ? '' : ' · Actual'}`;
-  $('jugada-anterior').disabled = ocupado || paso === 0;
-  $('jugada-siguiente').disabled = ocupado || paso === total;
+  if (ejemploActivo) $('posicion-reproduccion').textContent = ultima
+    ? `Jugada ${paso} · ${ultima.origen} → ${ultima.destino}${ultima.capturadas.length ? ` × ${ultima.capturadas.join(', ')}` : ''}`
+    : 'Posición de ejemplo';
+  $('jugada-anterior').disabled = ocupado || !!ejemploActivo || paso === 0;
+  $('jugada-siguiente').disabled = ocupado || !!ejemploActivo || paso === total;
 }
 
 async function seleccionar(casilla) {
@@ -111,9 +120,20 @@ async function seleccionar(casilla) {
   if (!isReviewing() && seleccionada && partida.jugadas_permitidas.some((jugada) => jugada.origen === seleccionada && jugada.destino === casilla)) {
     ocupado = true; render();
     try {
-      aceptarPartidaActual(await request('/api/partida/mover', { origen: seleccionada, destino: casilla }));
+      if (ejemploActivo) {
+        $('error-ejemplos').hidden = true;
+        partida = await request(`/api/ejemplos/${ejemploActivo.id}/mover`, {
+          origen: seleccionada, destino: casilla,
+          historial: partida.historial.map(({ origen, destino }) => ({ origen, destino })),
+        });
+      } else {
+        actualizarEstadoDePartida(await request('/api/partida/mover', { origen: seleccionada, destino: casilla }));
+      }
       seleccionada = partida.captura_obligatoria;
       destinoPrevio = null;
+    } catch (error) {
+      $('error-ejemplos').textContent = error.message;
+      $('error-ejemplos').hidden = false;
     } finally { ocupado = false; render(); }
   } else if (partida.inspecciones[casilla]) {
     seleccionada = seleccionada === casilla ? null : casilla;
@@ -129,9 +149,56 @@ function previsualizar(casilla) {
 }
 
 async function load() {
-  aceptarPartidaActual(await request('/api/partida'));
+  actualizarEstadoDePartida(await request('/api/partida'));
   seleccionada = partida.captura_obligatoria;
   render();
+}
+
+async function mostrarEjemplo(ejemplo) {
+  if (ocupado || !partida) return;
+  if (ejemploActivo?.id === ejemplo.id) {
+    ({ partida, seleccionada, destinoPrevio } = vistaGuardada);
+    ejemploActivo = vistaGuardada = null;
+    render();
+    return;
+  }
+  ocupado = true; render();
+  $('error-ejemplos').hidden = true;
+  try {
+    const datos = await request(`/api/ejemplos/${ejemplo.id}`);
+    if (!ejemploActivo) vistaGuardada = { partida, seleccionada, destinoPrevio };
+    ejemploActivo = ejemplo;
+    partida = datos.partida;
+    partida.ultima_inspeccion = datos.inspeccion;
+    seleccionada = ejemplo.origen;
+    destinoPrevio = ejemplo.destino;
+  } catch (error) {
+    $('error-ejemplos').textContent = error.message;
+    $('error-ejemplos').hidden = false;
+  } finally { ocupado = false; render(); }
+}
+
+async function cargarGlosario() {
+  try {
+    const ejemplos = await request('/api/ejemplos');
+    for (const ejemplo of ejemplos) {
+      const item = document.createElement('li');
+      const boton = document.createElement('button');
+      boton.type = 'button';
+      boton.className = 'boton-ejemplo';
+      boton.dataset.ejemplo = ejemplo.id;
+      boton.setAttribute('aria-pressed', 'false');
+      const titulo = document.createElement('strong');
+      titulo.textContent = `${ejemplo.titulo} (${ejemplo.origen} → ${ejemplo.destino})`;
+      boton.append(titulo);
+      boton.addEventListener('click', () => mostrarEjemplo(ejemplo));
+      item.append(boton); $('lista-ejemplos').append(item);
+    }
+    render();
+  } catch (error) {
+    $('error-ejemplos').textContent = `No se pudo cargar el glosario. ${error.message}`;
+    $('error-ejemplos').hidden = false;
+  }
 }
 
 $('jugada-anterior').addEventListener('click', () => review(partida.historial.length - 1));
@@ -139,9 +206,10 @@ $('jugada-siguiente').addEventListener('click', () => review(partida.historial.l
 $('nueva-partida').addEventListener('click', () => $('dialogo-reinicio').showModal());
 $('cancelar-reinicio').addEventListener('click', () => $('dialogo-reinicio').close());
 $('confirmar-reinicio').addEventListener('click', async () => {
-  if (ocupado) return;
+  if (ocupado || ejemploActivo) return;
   $('dialogo-reinicio').close(); ocupado = true; render();
-  try { aceptarPartidaActual(await request('/api/partida/reiniciar', {})); seleccionada = null; destinoPrevio = null; }
+  try { actualizarEstadoDePartida(await request('/api/partida/reiniciar', {})); seleccionada = null; destinoPrevio = null; }
   finally { ocupado = false; render(); }
 });
 load();
+cargarGlosario();
